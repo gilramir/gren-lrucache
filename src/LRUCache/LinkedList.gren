@@ -15,7 +15,6 @@ type Link comparable v =
     Link
     { previous : Maybe comparable
     , next : Maybe comparable
-    , value : comparable
     , dictValue : v
     }
 
@@ -51,7 +50,6 @@ pushFront newItem newDictValue list =
                     , nodes = Dict.set newItem (Link
                         { previous = Nothing
                         , next = Nothing
-                        , value = newItem
                         , dictValue = newDictValue
                         }) nodes
                     , zeroVal = zeroVal
@@ -66,8 +64,7 @@ pushFront newItem newDictValue list =
                     newLink =
                         (Link
                             { previous = Nothing
-                            , next = Just (linkValue originalFirstLink)
-                            , value = newItem
+                            , next = Just firstItem
                             , dictValue = newDictValue
                             })
                 in
@@ -76,12 +73,10 @@ pushFront newItem newDictValue list =
                         , nodes =
                             nodes
                                 |> Dict.set newItem newLink
-                                |> Dict.set (linkValue originalFirstLink)
+                                |> Dict.set firstItem
                                 (Link
-                                    { previous = Just (linkValue newLink)
+                                    { previous = Just newItem
                                     , next = linkNext originalFirstLink
-                                    , value = newItem
-                                    --, value = linkValue originalFirstLink
                                     , dictValue = linkDictValue originalFirstLink
                                     })
                         , zeroVal = zeroVal
@@ -94,12 +89,8 @@ unsafeGetLink item (LinkedList {nodes, zeroVal, zeroDictVal}) =
 
 emptyLink : comparable -> v -> Link comparable v
 emptyLink zeroVal zeroDictVal =
-    Link { previous = Nothing, next = Nothing, value = zeroVal, dictValue = zeroDictVal }
+    Link { previous = Nothing, next = Nothing, dictValue = zeroDictVal }
 
-
-linkValue : Link comparable v -> comparable
-linkValue (Link { value }) =
-    value
 
 linkDictValue : Link comparable v -> v
 linkDictValue (Link { dictValue }) =
@@ -165,7 +156,6 @@ remove item (LinkedList {firstAndLast, nodes, zeroVal, zeroDictVal} as list) =
                                                         |> Dict.set nextLinkKey (Link
                                                             { previous = Nothing
                                                             , next = linkNext nextLink
-                                                            , value = linkValue nextLink
                                                             , dictValue = linkDictValue nextLink
                                                             })
                                                 , zeroVal = zeroVal
@@ -189,7 +179,6 @@ remove item (LinkedList {firstAndLast, nodes, zeroVal, zeroDictVal} as list) =
                                                         |> Dict.set previousLinkKey (Link
                                                             { previous = linkPrevious previousLink
                                                             , next = Nothing
-                                                            , value = previousLinkKey
                                                             , dictValue = previousLinkDictValue
                                                             })
                                                         |> Dict.remove item
@@ -218,13 +207,11 @@ remove item (LinkedList {firstAndLast, nodes, zeroVal, zeroDictVal} as list) =
                                                         |> Dict.set previousLinkKey (Link
                                                             { previous = linkPrevious previousLink
                                                             , next = Just nextLinkKey
-                                                            , value = previousLinkKey
                                                             , dictValue = previousLinkDictValue
                                                             })
                                                         |> Dict.set nextLinkKey (Link
                                                             { previous = Just previousLinkKey
                                                             , next = linkNext nextLink
-                                                            , value = nextLinkKey
                                                             , dictValue = nextLinkDictValue
                                                             })
                                                         |> Dict.remove item
