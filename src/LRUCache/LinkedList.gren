@@ -6,7 +6,7 @@ type LinkedList comparable v =
     LinkedList
     { firstAndLast : Maybe { firstItem: comparable, lastItem: comparable }
     , nodes : Dict comparable (Link comparable v)
-    , zeroVal: comparable
+    , zeroDictKey: comparable
     , zeroDictVal : v
     }
 
@@ -23,11 +23,11 @@ toDict (LinkedList { nodes }) =
     Dict.map (\comparable (Link {dictValue}) -> dictValue) nodes
 
 emptyLinkedList : comparable -> v ->  LinkedList comparable v
-emptyLinkedList zeroVal zeroDictVal =
+emptyLinkedList zeroDictKey zeroDictVal =
     LinkedList
         { firstAndLast = Nothing
         , nodes = Dict.empty
-        , zeroVal = zeroVal
+        , zeroDictKey = zeroDictKey
         , zeroDictVal = zeroDictVal
         }
 
@@ -35,7 +35,7 @@ pushFront : comparable -> v -> LinkedList comparable v -> LinkedList comparable 
 pushFront newItem newDictValue list =
     let
         -- If a is already in the list then remove it
-        (LinkedList {firstAndLast, nodes, zeroVal, zeroDictVal} as listToUse) =
+        (LinkedList {firstAndLast, nodes, zeroDictKey, zeroDictVal} as listToUse) =
             if has newItem list then
                 (remove newItem list)
             else
@@ -52,7 +52,7 @@ pushFront newItem newDictValue list =
                         , next = Nothing
                         , dictValue = newDictValue
                         }) nodes
-                    , zeroVal = zeroVal
+                    , zeroDictKey = zeroDictKey
                     , zeroDictVal = zeroDictVal
                     }
 
@@ -79,16 +79,16 @@ pushFront newItem newDictValue list =
                                     , next = linkNext originalFirstLink
                                     , dictValue = linkDictValue originalFirstLink
                                     })
-                        , zeroVal = zeroVal
+                        , zeroDictKey = zeroDictKey
                         , zeroDictVal = zeroDictVal
                         }
 
 unsafeGetLink : comparable -> LinkedList comparable v -> Link comparable v
-unsafeGetLink item (LinkedList {nodes, zeroVal, zeroDictVal}) =
-    Maybe.withDefault (emptyLink zeroVal zeroDictVal) <| Dict.get item nodes
+unsafeGetLink item (LinkedList {nodes, zeroDictKey, zeroDictVal}) =
+    Maybe.withDefault (emptyLink zeroDictKey zeroDictVal) <| Dict.get item nodes
 
 emptyLink : comparable -> v -> Link comparable v
-emptyLink zeroVal zeroDictVal =
+emptyLink zeroDictKey zeroDictVal =
     Link { previous = Nothing, next = Nothing, dictValue = zeroDictVal }
 
 
@@ -111,7 +111,7 @@ has item (LinkedList {nodes}) =
     Dict.member item nodes
 
 remove : comparable -> LinkedList comparable v -> LinkedList comparable v
-remove item (LinkedList {firstAndLast, nodes, zeroVal, zeroDictVal} as list) =
+remove item (LinkedList {firstAndLast, nodes, zeroDictKey, zeroDictVal} as list) =
     when firstAndLast is
         Nothing ->
             list
@@ -137,7 +137,7 @@ remove item (LinkedList {firstAndLast, nodes, zeroVal, zeroDictVal} as list) =
                                         LinkedList
                                             { firstAndLast = Nothing
                                             , nodes = Dict.empty
-                                            , zeroVal = zeroVal
+                                            , zeroDictKey = zeroDictKey
                                             , zeroDictVal = zeroDictVal
                                             }
 
@@ -158,7 +158,7 @@ remove item (LinkedList {firstAndLast, nodes, zeroVal, zeroDictVal} as list) =
                                                             , next = linkNext nextLink
                                                             , dictValue = linkDictValue nextLink
                                                             })
-                                                , zeroVal = zeroVal
+                                                , zeroDictKey = zeroDictKey
                                                 , zeroDictVal = zeroDictVal
                                                 }
 
@@ -182,7 +182,7 @@ remove item (LinkedList {firstAndLast, nodes, zeroVal, zeroDictVal} as list) =
                                                             , dictValue = previousLinkDictValue
                                                             })
                                                         |> Dict.remove item
-                                                , zeroVal = zeroVal
+                                                , zeroDictKey = zeroDictKey
                                                 , zeroDictVal = zeroDictVal
                                                 }
 
@@ -215,15 +215,15 @@ remove item (LinkedList {firstAndLast, nodes, zeroVal, zeroDictVal} as list) =
                                                             , dictValue = nextLinkDictValue
                                                             })
                                                         |> Dict.remove item
-                                                , zeroVal = zeroVal
+                                                , zeroDictKey = zeroDictKey
                                                 , zeroDictVal = zeroDictVal
                                                 }
 
 unsafeLast : LinkedList comparable v -> comparable
-unsafeLast (LinkedList {firstAndLast, zeroVal}) =
+unsafeLast (LinkedList {firstAndLast, zeroDictKey}) =
     when firstAndLast is
         Nothing ->
-            zeroVal
+            zeroDictKey
 
         Just { firstItem = _ , lastItem = lastItem } ->
             lastItem

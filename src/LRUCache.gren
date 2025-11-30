@@ -12,10 +12,10 @@ type Cache comparable v
 
 -- Give the size and the zero value for empty records with the key type
 newCache: Int -> comparable -> v -> Cache comparable v
-newCache maxSize zeroVal zeroDictVal =
+newCache maxSize zeroDictKey zeroDictVal =
     Cache
         { maxSize = maxSize
-        , ordering = LinkedList.emptyLinkedList zeroVal zeroDictVal
+        , ordering = LinkedList.emptyLinkedList zeroDictKey zeroDictVal
         }
 
 {-| Get the dict that represents this cache.
