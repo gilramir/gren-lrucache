@@ -5,7 +5,6 @@ import Dict exposing (Dict)
 type LinkedList t =
     LinkedList
     { firstAndLast : Maybe { firstItem: t, lastItem: t }
-    , size : Int
     , nodes : Dict t (Link t)
     , zeroVal: t
     }
@@ -22,7 +21,6 @@ emptyLinkedList : t ->  LinkedList t
 emptyLinkedList zeroVal =
     LinkedList
         { firstAndLast = Nothing
-        , size = 0
         , nodes = Dict.empty
         , zeroVal = zeroVal
         }
@@ -31,7 +29,7 @@ pushFront : comparable -> LinkedList comparable -> LinkedList comparable
 pushFront newItem list =
     let
         -- If a is already in the list then remove it
-        (LinkedList {firstAndLast, size, nodes, zeroVal} as listToUse) =
+        (LinkedList {firstAndLast, nodes, zeroVal} as listToUse) =
             if has newItem list then
                 (remove newItem list)
             else
@@ -43,7 +41,6 @@ pushFront newItem list =
                 -- add an entry for it in the nodes map to denote it has no siblings.
                 LinkedList
                     { firstAndLast = Just { firstItem = newItem, lastItem = newItem }
-                    , size = size + 1
                     , nodes = Dict.set newItem (Link
                         { previous = Nothing
                         , next = Nothing
@@ -64,7 +61,6 @@ pushFront newItem list =
                 in
                     LinkedList
                         { firstAndLast = Just { firstItem = newItem, lastItem = lastItem }
-                        , size = size + 1
                         , nodes =
                             nodes
                                 |> Dict.set newItem newLink
@@ -104,7 +100,7 @@ has item (LinkedList {nodes}) =
     Dict.member item nodes
 
 remove : comparable -> LinkedList comparable -> LinkedList comparable
-remove item (LinkedList {firstAndLast, nodes, size, zeroVal} as list) =
+remove item (LinkedList {firstAndLast, nodes, zeroVal} as list) =
     when firstAndLast is
         Nothing ->
             list
@@ -129,7 +125,6 @@ remove item (LinkedList {firstAndLast, nodes, size, zeroVal} as list) =
                                         -- AND no next link, it must have been the only thing in the list
                                         LinkedList
                                             { firstAndLast = Nothing
-                                            , size = 0
                                             , nodes = Dict.empty
                                             , zeroVal = zeroVal
                                             }
@@ -143,7 +138,6 @@ remove item (LinkedList {firstAndLast, nodes, size, zeroVal} as list) =
                                             -- that next link to the new head.
                                             LinkedList
                                                 { firstAndLast = Just { firstItem = nextLinkKey, lastItem = lastItem }
-                                                , size = size - 1
                                                 , nodes =
                                                     nodes
                                                         |> Dict.remove item
@@ -166,7 +160,6 @@ remove item (LinkedList {firstAndLast, nodes, size, zeroVal} as list) =
                                         in
                                             LinkedList
                                                 { firstAndLast = Just { firstItem = firstItem, lastItem = previousLinkKey }
-                                                , size = size - 1
                                                 , nodes =
                                                     nodes
                                                         |> Dict.set previousLinkKey (Link
@@ -190,7 +183,6 @@ remove item (LinkedList {firstAndLast, nodes, size, zeroVal} as list) =
                                             -- It must not have been the first or last item
                                             LinkedList
                                                 { firstAndLast = Just { firstItem = firstItem, lastItem = lastItem }
-                                                , size = size - 1
                                                 , nodes =
                                                     nodes
                                                         |> Dict.set previousLinkKey (Link
