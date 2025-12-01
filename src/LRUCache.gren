@@ -25,6 +25,8 @@ toDict : LRUCache comparable v -> Dict comparable v
 toDict (LRUCache { ordering }) =
     LinkedList.toDict ordering
 
+{-| Inserts, or update, a key/value pair.
+-}
 put: comparable -> v -> LRUCache comparable v -> LRUCache comparable v
 put key value (LRUCache {maxSize, ordering} as cache) =
     let
@@ -58,6 +60,8 @@ put key value (LRUCache {maxSize, ordering} as cache) =
                             }
 
 
+{-| Maybe get a value for the given key.
+-}
 get : comparable -> LRUCache comparable v -> { cache: LRUCache comparable v, value: Maybe v }
 get key (LRUCache { maxSize, ordering} as cache) =
     let
@@ -75,6 +79,8 @@ get key (LRUCache { maxSize, ordering} as cache) =
                     value = Just dictValue
                 }
 
+{-| Remove a key from the cache.  If the key doesn't exist, no harm is done.
+-}
 remove : comparable -> LRUCache comparable v -> LRUCache comparable v
 remove key (LRUCache {maxSize, ordering}) =
     LRUCache
