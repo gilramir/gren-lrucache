@@ -1,6 +1,6 @@
 module LRUCache exposing (LRUCache, newLRUCache, get, put, remove, toDict)
 
-{- This module provides a cache for key/value pairs. When the maximum
+{-| This module provides a cache for key/value pairs. When the maximum
 size is reached, the least-recently-used key/value pair is evicted from the
 cache.
 
@@ -14,26 +14,52 @@ myCache =
         |> LRUCache.put "c" 3
         |> LRUCache.put "d" 4
 
-LRUCache.get "a" => (newCacheState, Nothing)
-LRUCache.get "b" => (newCacheState, Just 2)
-LRUCache.get "c" => (newCacheState, Just 3)
-LRUCache.get "d" => (newCacheState, Just 4)
+-- "a" was evicted
+LRUCache.get "a" => {cache: newCacheState, value: Nothing}
+LRUCache.get "b" => {cache: newCacheState, value: Just 2}
+LRUCache.get "c" => {cache: newCacheState, value: Just 3}
+LRUCache.get "d" => {cache: newCacheState, value: Just 4}
 ```
+
+@docs LRUCache
+@docs newLRUCache
+@docs toDict
+@docs put
+@docs get
+@docs remove
 -}
 
 import Dict exposing (Dict)
 
 import LRUCache.LinkedList as LinkedList exposing (LinkedList)
 
+{-|
+LRUCache is the type which is the actual cache. Create one with newLRUCache
+
+-}
 type LRUCache comparable v
     = LRUCache
         { maxSize : Int
         , ordering: LinkedList comparable v
         }
 
-{-| Create the LRUCache, setting the maximum size.
+{-|
+Create the LRUCache, setting the maximum size.
 
     newLRUCache 100 ->  LRUCache
+
+Example:
+```
+import LRUCache exposing (LRUCache)
+
+type alias Model =
+    { cache : LRUCache
+    }
+
+initialModel =
+    { cache = LRUCache.newCache 100
+    }
+```
 -}
 newLRUCache: Int -> LRUCache comparable v
 newLRUCache maxSize =
@@ -42,19 +68,32 @@ newLRUCache maxSize =
         , ordering = LinkedList.emptyLinkedList
         }
 
-{-| Get a dict that represents this cache. This is useful for unit tests.
+{-|
+Get a Dict that represents this cache, without any history of which keys
+were most recently used. This is useful for unit tests.
 As a user of the package, you're unlikely to use toDict.
 
-    toDict lruCache ->  Dict
+    toDict lruCache -> Dict
 -}
 toDict : LRUCache comparable v -> Dict comparable v
 toDict (LRUCache { ordering }) =
     LinkedList.toDict ordering
 
-{-| Insert, or update, a key/value pair. This marks the key as
+{-|
+Insert, or update, a key/value pair. This marks the key as
 most recently used.
 
     put "new-entry" 10 lruCache -> LRUCache
+
+Example:
+```
+    let
+        newCache = LRUCache.put "new-entry" 10 model.cache
+    in
+        { model
+            | cache = newCache
+        }
+```
 -}
 put: comparable -> v -> LRUCache comparable v -> LRUCache comparable v
 put key value (LRUCache {maxSize, ordering} as cache) =
@@ -89,10 +128,29 @@ put key value (LRUCache {maxSize, ordering} as cache) =
                             }
 
 
-{-| Maybe get a value for the given key. If the key exists, it is makred
+{-|
+Maybe get a value for the given key. If the key exists, it is makred
 as most recently used.
 
     get key lruCache -> { cache: LRUCache, value: Maybe value }
+
+Example:
+```
+    let
+        {cache: newCache, value: maybeValue } = LRUCache.get "new-entry" model.cache
+    in
+        when maybeValue is
+            Nothing ->
+                { model
+                    | cache = newCache
+                }, Cmd.none
+
+            Just value ->
+                { model
+                    | cache = newCache
+                    , results = value
+                }, Cmd.none
+```
 -}
 get : comparable -> LRUCache comparable v -> { cache: LRUCache comparable v, value: Maybe v }
 get key (LRUCache { maxSize, ordering} as cache) =
@@ -111,9 +169,20 @@ get key (LRUCache { maxSize, ordering} as cache) =
                     value = Just dictValue
                 }
 
-{-| Remove a key from the cache.  If the key doesn't exist, no harm is done.
+{-|
+Remove a key from the cache.  If the key doesn't exist, no harm is done.
 
     remove key lruCache -> LRUCache
+
+Example:
+```
+    let
+        newCache = LRUCache.remove "new-entry" model.cache
+    in
+        { model
+            | cache = newCache
+        }
+```
 -}
 remove : comparable -> LRUCache comparable v -> LRUCache comparable v
 remove key (LRUCache {maxSize, ordering}) =

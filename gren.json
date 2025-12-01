@@ -1,8 +1,8 @@
 {
     "type": "package",
     "platform": "common",
-    "name": "gilramir/gren-LRUCache",
-    "summary": "LRU cache",
+    "name": "gilramir/gren-lrucache",
+    "summary": "Least-Recently-Used (LRU) cache for key/value pairs",
     "license": "BSD-3-Clause",
     "version": "1.0.0",
     "exposed-modules": [ "LRUCache" ],
