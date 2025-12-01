@@ -1,38 +1,38 @@
-module LRUCache exposing (Cache, newCache, get, put, remove, toDict)
+module LRUCache exposing (LRUCache, newLRUCache, get, put, remove, toDict)
 
 import Dict exposing (Dict)
 
 import LRUCache.LinkedList as LinkedList exposing (LinkedList)
 
-type Cache comparable v
-    = Cache
+type LRUCache comparable v
+    = LRUCache
         { maxSize : Int
         , ordering: LinkedList comparable v
         }
 
 -- Give the size and the zero value for empty records with the key type
-newCache: Int -> comparable -> v -> Cache comparable v
-newCache maxSize zeroDictKey zeroDictVal =
-    Cache
+newLRUCache: Int -> comparable -> v -> LRUCache comparable v
+newLRUCache maxSize zeroDictKey zeroDictVal =
+    LRUCache
         { maxSize = maxSize
         , ordering = LinkedList.emptyLinkedList zeroDictKey zeroDictVal
         }
 
 {-| Get the dict that represents this cache.
 -}
-toDict : Cache comparable v -> Dict comparable v
-toDict (Cache { ordering }) =
+toDict : LRUCache comparable v -> Dict comparable v
+toDict (LRUCache { ordering }) =
     LinkedList.toDict ordering
 
-put: comparable -> v -> Cache comparable v -> Cache comparable v
-put key value (Cache {maxSize, ordering} as cache) =
+put: comparable -> v -> LRUCache comparable v -> LRUCache comparable v
+put key value (LRUCache {maxSize, ordering} as cache) =
     let
         updatedOrdering =
             LinkedList.pushFront key value ordering
         (LinkedList.LinkedList { nodes }) = updatedOrdering
     in
         if (Dict.count nodes <= maxSize) then
-            Cache
+            LRUCache
             { maxSize = maxSize
             , ordering = updatedOrdering
             }
@@ -43,14 +43,14 @@ put key value (Cache {maxSize, ordering} as cache) =
                 orderingWithoutLru =
                     LinkedList.remove lruKey updatedOrdering
             in
-                Cache
+                LRUCache
                 { maxSize = maxSize
                 , ordering = orderingWithoutLru
                 }
 
 
-get : comparable -> Cache comparable v -> { cache: Cache comparable v, value: Maybe v }
-get key (Cache { maxSize, ordering} as cache) =
+get : comparable -> LRUCache comparable v -> { cache: LRUCache comparable v, value: Maybe v }
+get key (LRUCache { maxSize, ordering} as cache) =
     let
         (LinkedList.LinkedList { nodes }) = ordering
     in
@@ -59,16 +59,16 @@ get key (Cache { maxSize, ordering} as cache) =
                 { cache = cache, value = Nothing }
 
             Just (LinkedList.Link {dictValue}) ->
-                { cache = Cache
+                { cache = LRUCache
                     { maxSize = maxSize
                     , ordering = LinkedList.pushFront key dictValue ordering
                     },
                     value = Just dictValue
                 }
 
-remove : comparable -> Cache comparable v -> Cache comparable v
-remove key (Cache {maxSize, ordering}) =
-    Cache
+remove : comparable -> LRUCache comparable v -> LRUCache comparable v
+remove key (LRUCache {maxSize, ordering}) =
+    LRUCache
         { ordering = LinkedList.remove key ordering
         , maxSize = maxSize
         }
