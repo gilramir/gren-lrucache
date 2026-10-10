@@ -31,20 +31,34 @@ LRUCache.get "d" => {cache: newCacheState, value: Just 4}
 
 import Dict exposing (Dict)
 
-import LRUCache.LinkedList as LinkedList exposing (LinkedList)
 
 {-|
 LRUCache is the type which is the actual cache. Create one with newLRUCache
 
 -}
 type LRUCache comparable v
-    = LRUCache
-        { maxSize : Int
-        , ordering: LinkedList comparable v
-        }
+    = LRUCache (State comparable v)
+
+
+{-| Each entry remembers the tick at which it was last used, and `recency`
+holds the same keys by that tick, so the least recently used one is
+`Dict.first recency`. Only `insert`, `delete` and `evictOldest` change the
+two Dicts, and each changes both.
+
+There is no linked list, so there is no pointer that can name a missing key,
+and no lookup whose `Nothing` "cannot happen".
+-}
+type alias State comparable v =
+    { maxSize : Int
+    , nextTick : Int
+    , entries : Dict comparable { value : v, tick : Int }
+    , recency : Dict Int comparable
+    }
+
 
 {-|
-Create the LRUCache, setting the maximum size.
+Create the LRUCache, setting the maximum size. A cache whose maximum size is
+0 or less holds nothing.
 
     newLRUCache 100 ->  LRUCache
 
@@ -61,12 +75,15 @@ initialModel =
     }
 ```
 -}
-newLRUCache: Int -> LRUCache comparable v
+newLRUCache : Int -> LRUCache comparable v
 newLRUCache maxSize =
     LRUCache
         { maxSize = maxSize
-        , ordering = LinkedList.emptyLinkedList
+        , nextTick = 0
+        , entries = Dict.empty
+        , recency = Dict.empty
         }
+
 
 {-|
 Get a Dict that represents this cache, without any history of which keys
@@ -76,8 +93,9 @@ As a user of the package, you're unlikely to use toDict.
     toDict lruCache -> Dict
 -}
 toDict : LRUCache comparable v -> Dict comparable v
-toDict (LRUCache { ordering }) =
-    LinkedList.toDict ordering
+toDict (LRUCache { entries }) =
+    Dict.map (\_ entry -> entry.value) entries
+
 
 {-|
 Insert, or update, a key/value pair. This marks the key as
@@ -95,41 +113,28 @@ Example:
         }
 ```
 -}
-put: comparable -> v -> LRUCache comparable v -> LRUCache comparable v
-put key value (LRUCache {maxSize, ordering} as cache) =
-    let
-        updatedOrdering =
-            LinkedList.pushFront key value ordering
-        (LinkedList.LinkedList { nodes }) = updatedOrdering
-    in
-        if (Dict.count nodes <= maxSize) then
-            LRUCache
-            { maxSize = maxSize
-            , ordering = updatedOrdering
-            }
-        else
-            let
-                maybeLruKey = LinkedList.getLastKey ordering
-            in
-                when maybeLruKey is
-                    Nothing ->
-                        -- This is impossible, because we would
-                        -- have hit this when the node count <= maxSize
-                        cache
+put : comparable -> v -> LRUCache comparable v -> LRUCache comparable v
+put key value (LRUCache state) =
+    if state.maxSize < 1 then
+        LRUCache state
 
-                    Just lruKey ->
-                        let
-                            orderingWithoutLru =
-                                LinkedList.remove lruKey updatedOrdering
-                        in
-                            LRUCache
-                            { maxSize = maxSize
-                            , ordering = orderingWithoutLru
-                            }
+    else
+        let
+            withoutKey =
+                delete key state
+
+            withRoom =
+                if Dict.count withoutKey.entries < state.maxSize then
+                    withoutKey
+
+                else
+                    evictOldest withoutKey
+        in
+        LRUCache (insert key value withRoom)
 
 
 {-|
-Maybe get a value for the given key. If the key exists, it is makred
+Maybe get a value for the given key. If the key exists, it is marked
 as most recently used.
 
     get key lruCache -> { cache: LRUCache, value: Maybe value }
@@ -152,22 +157,17 @@ Example:
                 }, Cmd.none
 ```
 -}
-get : comparable -> LRUCache comparable v -> { cache: LRUCache comparable v, value: Maybe v }
-get key (LRUCache { maxSize, ordering} as cache) =
-    let
-        (LinkedList.LinkedList { nodes }) = ordering
-    in
-        when Dict.get key nodes is
-            Nothing ->
-                { cache = cache, value = Nothing }
+get : comparable -> LRUCache comparable v -> { cache : LRUCache comparable v, value : Maybe v }
+get key ((LRUCache state) as cache) =
+    when Dict.get key state.entries is
+        Nothing ->
+            { cache = cache, value = Nothing }
 
-            Just (LinkedList.Link {dictValue}) ->
-                { cache = LRUCache
-                    { maxSize = maxSize
-                    , ordering = LinkedList.pushFront key dictValue ordering
-                    },
-                    value = Just dictValue
-                }
+        Just entry ->
+            { cache = LRUCache (insert key entry.value (delete key state))
+            , value = Just entry.value
+            }
+
 
 {-|
 Remove a key from the cache.  If the key doesn't exist, no harm is done.
@@ -185,8 +185,50 @@ Example:
 ```
 -}
 remove : comparable -> LRUCache comparable v -> LRUCache comparable v
-remove key (LRUCache {maxSize, ordering}) =
-    LRUCache
-        { ordering = LinkedList.remove key ordering
-        , maxSize = maxSize
-        }
+remove key (LRUCache state) =
+    LRUCache (delete key state)
+
+
+
+-- THE TWO DICTS, CHANGED TOGETHER
+
+
+{-| Add a key as the most recently used. `put` and `get` delete it first. -}
+insert : comparable -> v -> State comparable v -> State comparable v
+insert key value state =
+    { state
+        | nextTick = state.nextTick + 1
+        , entries = Dict.set key { value = value, tick = state.nextTick } state.entries
+        , recency = Dict.set state.nextTick key state.recency
+    }
+
+
+{-| Remove a key, if it is there. -}
+delete : comparable -> State comparable v -> State comparable v
+delete key state =
+    when Dict.get key state.entries is
+        Nothing ->
+            state
+
+        Just entry ->
+            { state
+                | entries = Dict.remove key state.entries
+                , recency = Dict.remove entry.tick state.recency
+            }
+
+
+{-| Remove the least recently used entry, if there is one. An empty cache has
+nothing to evict, and leaving it as it is is the right answer, not a case that
+"cannot happen".
+-}
+evictOldest : State comparable v -> State comparable v
+evictOldest state =
+    when Dict.first state.recency is
+        Nothing ->
+            state
+
+        Just oldest ->
+            { state
+                | entries = Dict.remove oldest.value state.entries
+                , recency = Dict.remove oldest.key state.recency
+            }

@@ -1,4 +1,4 @@
-A simple, least recently used (LRU) cache with O(1) get, put and remove operations.
+A simple, least recently used (LRU) cache with O(log n) get, put and remove operations.
 As with Dicts, the key can be of any type that meets the "comparable" constraint.
 The value can be of any type.
 
@@ -36,6 +36,11 @@ http://package.elm-lang.org/packages/naddeoa/quick-cache/latest
 
 Besides the conversion to Gren, the code was also modified to
 allow more than just Strings to be keys. Now, any comparable type
-can be a key. Also, one of the Dicts used internally was removed,
-leaving just one Dict for each LRUCache. Some other optimizations
-were done.
+can be a key.
+
+The original kept a doubly-linked list inside a Dict, whose links could, as
+far as the types knew, name keys that were not there, so the code carried
+several `when` branches for cases that could never happen. The cache is now
+two Dicts: each key with its value and the tick at which it was last used,
+and the keys by tick, whose first entry is the least recently used. Every
+`when` in it is a case that can happen.

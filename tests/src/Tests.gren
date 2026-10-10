@@ -5,6 +5,7 @@ import Test exposing (..)
 import Dict
 
 import LRUCache
+import Math
 
 suite : Test
 suite =
@@ -223,5 +224,163 @@ suite =
                     in
                         Expect.equalDicts expected actual
 
+            , test "A cache of size 0 holds nothing" <|
+                \_ ->
+                    LRUCache.newLRUCache 0
+                        |> LRUCache.put "a" 1
+                        |> LRUCache.put "b" 2
+                        |> LRUCache.toDict
+                        |> Expect.equalDicts Dict.empty
+
+            , test "A cache of negative size holds nothing" <|
+                \_ ->
+                    LRUCache.newLRUCache -3
+                        |> LRUCache.put "a" 1
+                        |> LRUCache.toDict
+                        |> Expect.equalDicts Dict.empty
+
+            , test "Putting a key already there, when full, evicts nothing" <|
+                \_ ->
+                    let
+                        expected =
+                            Dict.empty
+                                |> Dict.set "a" 1
+                                |> Dict.set "b" 20
+                    in
+                    LRUCache.newLRUCache 2
+                        |> LRUCache.put "a" 1
+                        |> LRUCache.put "b" 2
+                        |> LRUCache.put "b" 20
+                        |> LRUCache.toDict
+                        |> Expect.equalDicts expected
+
+            , test "Putting a key already there makes it the most recently used" <|
+                \_ ->
+                    let
+                        expected =
+                            Dict.empty
+                                |> Dict.set "a" 10
+                                |> Dict.set "c" 3
+                    in
+                    LRUCache.newLRUCache 2
+                        |> LRUCache.put "a" 1
+                        |> LRUCache.put "b" 2
+                        |> LRUCache.put "a" 10
+                        |> LRUCache.put "c" 3
+                        |> LRUCache.toDict
+                        |> Expect.equalDicts expected
+
+            , test "Getting a missing key changes nothing" <|
+                \_ ->
+                    let
+                        cache =
+                            LRUCache.newLRUCache 2
+                                |> LRUCache.put "a" 1
+
+                        { cache = after, value = value } =
+                            LRUCache.get "z" cache
+                    in
+                    Expect.equal
+                        { value = Nothing, dict = LRUCache.toDict cache }
+                        { value = value, dict = LRUCache.toDict after }
+
+            , test "A long run of operations agrees with a reference model" <|
+                \_ ->
+                    let
+                        operations =
+                            Array.initialize 2000 0 operation
+
+                        final =
+                            Array.foldl step { cache = LRUCache.newLRUCache 4, model = [], gets = [], modelGets = [] } operations
+                    in
+                    Expect.equal
+                        { dict = modelDict final.model, gets = final.modelGets }
+                        { dict = LRUCache.toDict final.cache, gets = final.gets }
             ]
         ]
+
+
+-- A REFERENCE MODEL: the keys, most recently used first, with their values.
+
+
+type Operation
+    = Put { key : Int, value : Int }
+    | Get Int
+    | Remove Int
+
+
+operation : Int -> Operation
+operation i =
+    let
+        key =
+            Math.modBy 11 (i * i * 31 + i * 17 + i // 3)
+    in
+    when Math.modBy 5 i is
+        0 ->
+            Remove key
+
+        1 ->
+            Get key
+
+        2 ->
+            Get key
+
+        _ ->
+            Put { key = key, value = i }
+
+
+type alias Run =
+    { cache : LRUCache.LRUCache Int Int
+    , model : Array { key : Int, value : Int }
+    , gets : Array (Maybe Int)
+    , modelGets : Array (Maybe Int)
+    }
+
+
+step : Operation -> Run -> Run
+step op run =
+    when op is
+        Put { key, value } ->
+            { run
+                | cache = LRUCache.put key value run.cache
+                , model =
+                    run.model
+                        |> Array.keepIf (\entry -> entry.key /= key)
+                        |> Array.pushFirst { key = key, value = value }
+                        |> Array.takeFirst 4
+            }
+
+        Get key ->
+            let
+                { cache, value } =
+                    LRUCache.get key run.cache
+
+                found =
+                    Array.findFirst (\entry -> entry.key == key) run.model
+                        |> Maybe.map .value
+            in
+            { run
+                | cache = cache
+                , gets = Array.pushLast value run.gets
+                , modelGets = Array.pushLast (Maybe.map .value found) run.modelGets
+                , model =
+                    when found is
+                        Nothing ->
+                            run.model
+
+                        Just entry ->
+                            run.model
+                                |> Array.keepIf (\e -> e.key /= key)
+                                |> Array.pushFirst entry
+            }
+
+        Remove key ->
+            { run
+                | cache = LRUCache.remove key run.cache
+                , model = Array.keepIf (\entry -> entry.key /= key) run.model
+            }
+
+
+modelDict : Array { key : Int, value : Int } -> Dict.Dict Int Int
+modelDict model =
+    Array.foldl (\entry dict -> Dict.set entry.key entry.value dict) Dict.empty model
