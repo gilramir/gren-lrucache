@@ -4,8 +4,10 @@
     "name": "gilramir/gren-lrucache",
     "summary": "Least-Recently-Used (LRU) cache for key/value pairs",
     "license": "BSD-3-Clause",
-    "version": "1.0.0",
-    "exposed-modules": [ "LRUCache" ],
+    "version": "1.0.1",
+    "exposed-modules": [
+        "LRUCache"
+    ],
     "gren-version": "0.6.0 <= v < 0.7.0",
     "dependencies": {
         "gren-lang/core": "7.2.0 <= v < 8.0.0"
