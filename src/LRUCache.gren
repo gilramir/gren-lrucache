@@ -1,4 +1,4 @@
-module LRUCache exposing (LRUCache, newLRUCache, get, put, remove, toDict)
+module LRUCache exposing (LRUCache, get, newLRUCache, put, remove, toDict)
 
 {-| This module provides a cache for key/value pairs. When the maximum
 size is reached, the least-recently-used key/value pair is evicted from the
@@ -74,6 +74,7 @@ initialModel =
     { cache = LRUCache.newCache 100
     }
 ```
+
 -}
 newLRUCache : Int -> LRUCache comparable v
 newLRUCache maxSize =
@@ -91,6 +92,7 @@ were most recently used. This is useful for unit tests.
 As a user of the package, you're unlikely to use toDict.
 
     toDict lruCache -> Dict
+
 -}
 toDict : LRUCache comparable v -> Dict comparable v
 toDict (LRUCache { entries }) =
@@ -112,6 +114,7 @@ Example:
             | cache = newCache
         }
 ```
+
 -}
 put : comparable -> v -> LRUCache comparable v -> LRUCache comparable v
 put key value (LRUCache state) =
@@ -156,6 +159,7 @@ Example:
                     , results = value
                 }, Cmd.none
 ```
+
 -}
 get : comparable -> LRUCache comparable v -> { cache : LRUCache comparable v, value : Maybe v }
 get key ((LRUCache state) as cache) =
@@ -183,11 +187,11 @@ Example:
             | cache = newCache
         }
 ```
+
 -}
 remove : comparable -> LRUCache comparable v -> LRUCache comparable v
 remove key (LRUCache state) =
     LRUCache (delete key state)
-
 
 
 -- THE TWO DICTS, CHANGED TOGETHER
