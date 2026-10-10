@@ -284,23 +284,40 @@ suite =
                         { value = Nothing, dict = LRUCache.toDict cache }
                         { value = value, dict = LRUCache.toDict after }
 
-            , test "A long run of operations agrees with a reference model" <|
+            , test "A cache of size 1 keeps only the last key used" <|
                 \_ ->
                     let
-                        operations =
-                            Array.initialize 2000 0 operation
+                        { cache = afterGet, value = _ } =
+                            LRUCache.newLRUCache 1
+                                |> LRUCache.put "a" 1
+                                |> LRUCache.put "b" 2
+                                |> LRUCache.get "b"
 
-                        final =
-                            Array.foldl step { cache = LRUCache.newLRUCache 4, model = [], gets = [], modelGets = [] } operations
+                        expected =
+                            Dict.empty
+                                |> Dict.set "c" 3
                     in
-                    Expect.equal
-                        { dict = modelDict final.model, gets = final.modelGets }
-                        { dict = LRUCache.toDict final.cache, gets = final.gets }
+                    afterGet
+                        |> LRUCache.put "c" 3
+                        |> LRUCache.toDict
+                        |> Expect.equalDicts expected
             ]
+        , describe "Against a reference model, at every step"
+            (Array.map modelTest
+                (Array.flatten
+                    (Array.map
+                        (\size -> Array.map (\mix -> { size = size, mix = mix }) mixes)
+                        [ 1, 2, 4, 10 ]
+                    )
+                )
+            )
         ]
 
 
+
 -- A REFERENCE MODEL: the keys, most recently used first, with their values.
+-- After every operation the cache must answer what the model does, hold the
+-- same entries, and hold no more than its size.
 
 
 type Operation
@@ -309,45 +326,109 @@ type Operation
     | Remove Int
 
 
-operation : Int -> Operation
-operation i =
+{-| How often each operation comes, out of ten, and how many keys there are. -}
+type alias Mix =
+    { name : String, puts : Int, gets : Int, keys : Int }
+
+
+mixes : Array Mix
+mixes =
+    [ { name = "mostly puts", puts = 7, gets = 2, keys = 11 }
+    , { name = "mostly gets", puts = 3, gets = 6, keys = 7 }
+    , { name = "many removes", puts = 4, gets = 2, keys = 17 }
+    ]
+
+
+operation : Mix -> Int -> Operation
+operation mix i =
     let
         key =
-            Math.modBy 11 (i * i * 31 + i * 17 + i // 3)
+            Math.modBy mix.keys (i * i * 31 + i * 17 + i // 3)
+
+        roll =
+            Math.modBy 10 (i * 7 + i // 10)
     in
-    when Math.modBy 5 i is
-        0 ->
-            Remove key
+    if roll < mix.puts then
+        Put { key = key, value = i }
 
-        1 ->
-            Get key
+    else if roll < mix.puts + mix.gets then
+        Get key
 
-        2 ->
-            Get key
+    else
+        Remove key
 
-        _ ->
-            Put { key = key, value = i }
+
+modelTest : { size : Int, mix : Mix } -> Test
+modelTest { size, mix } =
+    test ("size " ++ String.fromInt size ++ ", " ++ mix.name) <|
+        \_ ->
+            let
+                start =
+                    { cache = LRUCache.newLRUCache size, model = [], failure = Nothing }
+
+                final =
+                    Array.foldl (step size) start (Array.initialize 2000 0 (operation mix))
+            in
+            when final.failure is
+                Nothing ->
+                    Expect.pass
+
+                Just failure ->
+                    Expect.fail failure
 
 
 type alias Run =
     { cache : LRUCache.LRUCache Int Int
     , model : Array { key : Int, value : Int }
-    , gets : Array (Maybe Int)
-    , modelGets : Array (Maybe Int)
+    , failure : Maybe String
     }
 
 
-step : Operation -> Run -> Run
-step op run =
+step : Int -> Operation -> Run -> Run
+step size op run =
+    when run.failure is
+        Just _ ->
+            run
+
+        Nothing ->
+            let
+                done =
+                    apply size op run
+
+                actual =
+                    LRUCache.toDict done.run.cache
+            in
+            if done.answer /= done.modelAnswer then
+                { done.run | failure = Just (describeOp op ++ " answered " ++ Debug.toString done.answer ++ ", and the model " ++ Debug.toString done.modelAnswer) }
+
+            else if actual /= modelDict done.run.model then
+                { done.run | failure = Just ("after " ++ describeOp op ++ " the cache holds " ++ Debug.toString actual ++ ", and the model " ++ Debug.toString (modelDict done.run.model)) }
+
+            else if Dict.count actual > max 0 size then
+                { done.run | failure = Just ("after " ++ describeOp op ++ " the cache holds " ++ String.fromInt (Dict.count actual) ++ " entries") }
+
+            else
+                done.run
+
+
+apply : Int -> Operation -> Run -> { run : Run, answer : Maybe Int, modelAnswer : Maybe Int }
+apply size op run =
+    let
+        without key =
+            Array.keepIf (\entry -> entry.key /= key) run.model
+    in
     when op is
         Put { key, value } ->
-            { run
-                | cache = LRUCache.put key value run.cache
-                , model =
-                    run.model
-                        |> Array.keepIf (\entry -> entry.key /= key)
-                        |> Array.pushFirst { key = key, value = value }
-                        |> Array.takeFirst 4
+            { run =
+                { run
+                    | cache = LRUCache.put key value run.cache
+                    , model =
+                        without key
+                            |> Array.pushFirst { key = key, value = value }
+                            |> Array.takeFirst (max 0 size)
+                }
+            , answer = Nothing
+            , modelAnswer = Nothing
             }
 
         Get key ->
@@ -359,26 +440,39 @@ step op run =
                     Array.findFirst (\entry -> entry.key == key) run.model
                         |> Maybe.map .value
             in
-            { run
-                | cache = cache
-                , gets = Array.pushLast value run.gets
-                , modelGets = Array.pushLast (Maybe.map .value found) run.modelGets
-                , model =
-                    when found is
-                        Nothing ->
-                            run.model
+            { run =
+                { run
+                    | cache = cache
+                    , model =
+                        when found is
+                            Nothing ->
+                                run.model
 
-                        Just entry ->
-                            run.model
-                                |> Array.keepIf (\e -> e.key /= key)
-                                |> Array.pushFirst entry
+                            Just entry ->
+                                Array.pushFirst entry (without key)
+                }
+            , answer = value
+            , modelAnswer = Maybe.map .value found
             }
 
         Remove key ->
-            { run
-                | cache = LRUCache.remove key run.cache
-                , model = Array.keepIf (\entry -> entry.key /= key) run.model
+            { run = { run | cache = LRUCache.remove key run.cache, model = without key }
+            , answer = Nothing
+            , modelAnswer = Nothing
             }
+
+
+describeOp : Operation -> String
+describeOp op =
+    when op is
+        Put { key, value } ->
+            "put " ++ String.fromInt key ++ " " ++ String.fromInt value
+
+        Get key ->
+            "get " ++ String.fromInt key
+
+        Remove key ->
+            "remove " ++ String.fromInt key
 
 
 modelDict : Array { key : Int, value : Int } -> Dict.Dict Int Int

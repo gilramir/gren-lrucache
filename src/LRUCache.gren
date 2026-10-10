@@ -43,13 +43,15 @@ type LRUCache comparable v
 {-| Each entry remembers the tick at which it was last used, and `recency`
 holds the same keys by that tick, so the least recently used one is
 `Dict.first recency`. Only `insert`, `delete` and `evictOldest` change the
-two Dicts, and each changes both.
+two Dicts, and each changes both, and `size` with them: `Dict.count` walks
+the whole Dict, which would make every `put` O(n).
 
 There is no linked list, so there is no pointer that can name a missing key,
 and no lookup whose `Nothing` "cannot happen".
 -}
 type alias State comparable v =
     { maxSize : Int
+    , size : Int
     , nextTick : Int
     , entries : Dict comparable { value : v, tick : Int }
     , recency : Dict Int comparable
@@ -80,6 +82,7 @@ newLRUCache : Int -> LRUCache comparable v
 newLRUCache maxSize =
     LRUCache
         { maxSize = maxSize
+        , size = 0
         , nextTick = 0
         , entries = Dict.empty
         , recency = Dict.empty
@@ -127,7 +130,7 @@ put key value (LRUCache state) =
                 delete key state
 
             withRoom =
-                if Dict.count withoutKey.entries < state.maxSize then
+                if withoutKey.size < state.maxSize then
                     withoutKey
 
                 else
@@ -201,7 +204,8 @@ remove key (LRUCache state) =
 insert : comparable -> v -> State comparable v -> State comparable v
 insert key value state =
     { state
-        | nextTick = state.nextTick + 1
+        | size = state.size + 1
+        , nextTick = state.nextTick + 1
         , entries = Dict.set key { value = value, tick = state.nextTick } state.entries
         , recency = Dict.set state.nextTick key state.recency
     }
@@ -216,7 +220,8 @@ delete key state =
 
         Just entry ->
             { state
-                | entries = Dict.remove key state.entries
+                | size = state.size - 1
+                , entries = Dict.remove key state.entries
                 , recency = Dict.remove entry.tick state.recency
             }
 
@@ -232,7 +237,4 @@ evictOldest state =
             state
 
         Just oldest ->
-            { state
-                | entries = Dict.remove oldest.value state.entries
-                , recency = Dict.remove oldest.key state.recency
-            }
+            delete oldest.value state
